@@ -1,6 +1,11 @@
 #include <cstdio>
 #include <cstdlib>
 
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <time.h>
+
 #include "gambatte.h"
 
 #include "input.h"
@@ -10,6 +15,8 @@ int written_songs;
 gambatte::GB gameboy;
 Input input;
 std::string out_path;
+
+double start_time, timeout;
 
 void run_one_frame() {
     size_t samples = 35112;
@@ -69,6 +76,12 @@ void play_song() {
     record_song_start(out_path.c_str());
     do {
         wait(1);
+
+        if( (clock() / CLOCKS_PER_SEC) - start_time > timeout){
+            fprintf(stderr, "record timeout!\n");
+            exit(2);
+        }
+
     } while(sound_enabled);
 }
 
@@ -106,21 +119,126 @@ void make_out_path(const char* in_path) {
     printf("Recording to '%s'\n", out_path.c_str());
 }
 
+#define DEF_TIMEOUT 60.0
+#define DEF_MBC '5'
+#define DEF_MAXBANK 0x200
+#define DEF_STARTBANK 1
+
+void usage(){
+    fprintf(stderr, "usage: lsdpack <lsdj.gb>\n");
+    fprintf(stderr, "[-t sec]:\t\t\ttimeout sec 0-120 (default %d sec)\n", (int)DEF_TIMEOUT);
+    fprintf(stderr, "[-s dir]:\t\t\tSavedata dir\n");
+    fprintf(stderr, "[-d dir]:\t\t\tOutput dir\n");
+    // fprintf(stderr, "[-B mbc]:\t\t\tUse MBC \"C\",\"5\" (default:MBC%d)\n",DEF_MBC);
+    fprintf(stderr, "[-M maxbank]:\t\t\tMax bank num (default:1023)\n");
+    fprintf(stderr, "[-S starting bank]:\t\tStarting bank num (default:1)\n");
+    fprintf(stderr, "[-h]:\t\t\t\tHelp\n");
+}
+
 int main(int argc, char* argv[]) {
-    if (argc != 2) {
-        fprintf(stderr, "usage: lsdpack <lsdj.gb>");
+    int op, i, t;
+    int startbank = DEF_STARTBANK;
+    int maxbank = DEF_MAXBANK;
+	//char mbc = DEF_MBC;
+    char destpath[256];
+    struct stat statinfo;
+
+    memset(destpath, 0, 256);
+    timeout = DEF_TIMEOUT;
+
+    if (argc < 2) {
+        usage();
         return 1;
     }
+
+    opterr = 0;
+    while ((op = getopt(argc, argv, "ht:s:d:B:M:S:")) != -1) {
+        switch (op) {
+            case 'h':
+                usage();
+                return 1;
+            case 't':
+				t = atoi(optarg);
+		        if(t <= 0 || t > 120){
+		        	fprintf(stderr, "usage: timeout sec error\n");
+		        	return 1;
+		        }
+		        timeout = (double) t;
+                break;
+            case 's':
+		        if (stat(optarg, &statinfo) == 0){
+		            gameboy.setSaveDir(optarg);
+		        }
+		        else{
+		            fprintf(stderr, "usage: savedata dir error\n");
+		            return 1;
+		        }
+                break;
+            case 'd':
+                strncpy(destpath, optarg, 255);
+                /*
+                if (stat(optarg, &statinfo) == 0){
+		            strncpy(destpath, optarg, 255);
+		        }
+		        else{
+		            fprintf(stderr, "usage: dest dir error\n");
+		            return 1;
+		        }
+		        */
+                break;
+                /*
+            case 'B':
+                if(  strcmp("C",optarg) != 0 && strcmp("5",optarg) != 0 ){
+		            fprintf(stderr, "usage: MBC error\n");
+		            return 1;
+                }
+                mbc = optarg[0];
+                break;
+                */
+            case 'M':
+				maxbank = atoi(optarg);
+		        if(maxbank < 32 || maxbank > 0x200){
+		        	fprintf(stderr, "usage: Max bank num error\n");
+		        	return 1;
+		        }
+                break;
+            case 'S':
+				startbank = atoi(optarg);
+		        if(startbank < 1 || startbank > 0x200){
+		        	fprintf(stderr, "usage: Starting bank num error\n");
+		        	return 1;
+		        }
+                break;
+            default:
+                usage();
+                return 1;
+        }
+    }
+
+	if(startbank >= maxbank){
+		fprintf(stderr, "Starting bank num exceeds maximum bank num error\n");
+		return 1;
+	}
+    
     gameboy.setInputGetter(&input);
     gameboy.setWriteHandler(on_ff_write);
     gameboy.setLcdHandler(on_lcd_interrupt);
-    gameboy.load(argv[1]);
+    gameboy.load(argv[optind]);
 
-    make_out_path(argv[1]);
+    if(strlen(destpath) != 0)
+        out_path = destpath;
+    else
+        make_out_path(argv[optind]);
 
     press(0, 3);
 
-    int i = 0;
+	set_startbank(startbank);
+	set_maxbank(maxbank);
+	
+    // start timeout timer
+    start_time = clock() / CLOCKS_PER_SEC ;
+
+    i = 0;
     while (true) {
         load_song(i++);
         play_song();

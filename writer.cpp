@@ -16,6 +16,8 @@ FILE* sample_file = fopen("samples", "wb");
 
 static FILE* f;
 
+static int maxbank;
+
 struct Location {
     int bank;
     int ptr;
@@ -39,10 +41,20 @@ static std::vector<unsigned int> music_stream;
 
 static int sample_count;
 
+void set_startbank(int banknum){
+  maxbank = banknum;
+}
+
+void set_maxbank(int banknum){
+  if(banknum == 0) return;
+  write_location.bank = banknum -1;
+
+}
+
 static void new_bank() {
-    if (++write_location.bank == 0x200) {
+    if (++write_location.bank >= maxbank) {
         fputs("ROM full!", stderr);
-        exit(1);
+        exit(3);
     }
     fprintf(f, "SECTION \"MUSIC_%i\",ROMX,BANK[%i]\n",
             write_location.bank, write_location.bank);
