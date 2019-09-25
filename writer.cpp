@@ -41,11 +41,11 @@ static std::vector<unsigned int> music_stream;
 
 static int sample_count;
 
-void set_startbank(int banknum){
+void set_maxbank(int banknum){
   maxbank = banknum;
 }
 
-void set_maxbank(int banknum){
+void set_startbank(int banknum){
   if(banknum == 0) return;
   write_location.bank = banknum -1;
 
