@@ -129,6 +129,7 @@ void usage(){
     fprintf(stderr, "[-t sec]:\t\t\ttimeout sec 0-120 (default %d sec)\n", (int)DEF_TIMEOUT);
     fprintf(stderr, "[-s dir]:\t\t\tSavedata dir\n");
     fprintf(stderr, "[-d dir]:\t\t\tOutput dir\n");
+    fprintf(stderr, "[-R list]:\t\t\tRecording list\n");
     // fprintf(stderr, "[-B mbc]:\t\t\tUse MBC \"C\",\"5\" (default:MBC%d)\n",DEF_MBC);
     fprintf(stderr, "[-M maxbank]:\t\t\tMax bank num (default:1023)\n");
     fprintf(stderr, "[-S starting bank]:\t\tStarting bank num (default:1)\n");
@@ -143,6 +144,9 @@ int main(int argc, char* argv[]) {
     char destpath[256];
     struct stat statinfo;
 
+    int recording_list_flag = 0;
+    char recording_list[256];
+
     memset(destpath, 0, 256);
     timeout = DEF_TIMEOUT;
 
@@ -152,7 +156,7 @@ int main(int argc, char* argv[]) {
     }
 
     opterr = 0;
-    while ((op = getopt(argc, argv, "ht:s:d:B:M:S:")) != -1) {
+    while ((op = getopt(argc, argv, "ht:s:d:B:M:S:R:")) != -1) {
         switch (op) {
             case 'h':
                 usage();
@@ -202,6 +206,10 @@ int main(int argc, char* argv[]) {
 		        	return 1;
 		        }
                 break;
+            case 'R':
+				recording_list_flag = 1;
+				strncpy(recording_list, optarg, 256);
+                break;
             case 'S':
 				startbank = atoi(optarg);
 		        if(startbank < 1 || startbank > 0x200){
@@ -240,6 +248,18 @@ int main(int argc, char* argv[]) {
 
     i = 0;
     while (true) {
+        if( recording_list_flag ){
+            if(recording_list[i] == '\0'){
+            	fprintf(stderr, "recording list finish\n");
+        		exit(0);
+            }
+            else if(recording_list[i] != 'R'){
+            	fprintf(stderr, "skip track %d\n",i);
+            	i++;
+                continue;
+            }
+        }
+        
         load_song(i++);
         play_song();
     }
