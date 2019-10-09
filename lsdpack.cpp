@@ -251,6 +251,8 @@ int main(int argc, char* argv[]) {
         if( recording_list_flag ){
             if(recording_list[i] == '\0'){
             	fprintf(stderr, "recording list finish\n");
+                write_music_to_disk();
+                puts("OK");
         		exit(0);
             }
             else if(recording_list[i] != 'R'){
